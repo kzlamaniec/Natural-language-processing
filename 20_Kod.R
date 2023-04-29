@@ -133,3 +133,4 @@ tdm_tf_612 <- DocumentTermMatrix(
 tdm_tfidf_216_m <- as.matrix(tdm_tfidf_216)
 tdm_bin_410_m <- as.matrix(tdm_bin_410)
 tdm_tf_612_m <- as.matrix(tdm_tf_612)
+
