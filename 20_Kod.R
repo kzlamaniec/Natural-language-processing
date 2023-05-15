@@ -242,5 +242,253 @@ for (doc_no in 1:length(corpus)) {
   dev.off()
 }
 
+## Reduction
+library(lsa)
 
+# załadowanie skryptu z macierzą częstości
+source_file <- "./scripts/frequency_matrix.R"
+source(source_file)
+
+# utworzenie katalogu na wyniki
+reduction_dir <- "./reduction"
+dir.create(reduction_dir)
+
+# legenda
+doc_names <- rownames(dtm_tfidf_bounds)
+doc_count <- length(doc_names)
+legend <- paste(
+  paste(
+    "d",
+    1:doc_count,
+    sep = ""
+  ),
+  doc_names,
+  sep = " -> "
+)
+options(scipen = 5)
+
+# kolory
+clusters_pattern <- c(1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5)
+cols = c("purple", "turquoise", "orange", "lightskyblue", "darkseagreen", "hotpink")
+cols_pattern <- cols[clusters_pattern]
+names(clusters_pattern) <- doc_names
+names(cols_pattern) <- doc_names
+
+# analiza głównych składowych
+pca_model <- prcomp(dtm_tfidf_bounds)
+
+x <- pca_model$x[,1]
+y <- pca_model$x[,2]
+
+plot_file <- paste(
+  reduction_dir,
+  "pca.png",
+  sep = "/"
+)
+png(plot_file, width = 800)
+par(mar = c(4, 4, 4, 25), xpd = TRUE)
+plot(
+  x,
+  y,
+  main = "Analiza głównych składowych",
+  xlab = "PC1",
+  ylab = "PC2",
+  col = cols_pattern,
+  pch = 16
+)
+text(
+  x,
+  y,
+  paste(
+    "d",
+    1:doc_count,
+    sep = ""
+  ),
+  col = cols_pattern,
+  pos = 1
+)
+legend(
+  "topright",
+  inset = c(-0.9, 0.1),
+  legend,
+  text.col = cols_pattern
+)
+dev.off()
+
+# analiza ukrytych wymiarów semantycznych
+# dekompozycja według wartości osobliwych
+lsa_model <- lsa(tdm_tf_bounds_m)
+
+coord_docs <- lsa_model$dk%*%diag(lsa_model$sk)
+coord_terms <- lsa_model$tk%*%diag(lsa_model$sk)
+
+terms_importance <- diag(
+  lsa_model$tk%*%diag(lsa_model$sk)%*%t(diag(lsa_model$sk))%*%t(lsa_model$tk)
+)
+important_terms <- names(
+  tail(
+    sort(terms_importance),
+    30
+  )
+)
+
+own_terms <- c("arlen", "eragon", "bilbo", "yennefer", "ciri", "jaskier", "geralt", "frodo", "gandalf", "halt", "ork", "horace")
+current_terms <- own_terms
+
+x1 <- coord_docs[,1]
+y1 <- coord_docs[,2]
+x2 <- coord_terms[current_terms,1]
+y2 <- coord_terms[current_terms,2]
+
+plot_file <- paste(
+  reduction_dir,
+  "lsa.png",
+  sep = "/"
+)
+png(plot_file, width = 800)
+par(mar = c(4, 4, 4, 25), xpd = TRUE)
+plot(
+  x1,
+  y1,
+  main = "Analiza ukrytych wymiarów semantycznych",
+  xlab = "SD1",
+  ylab = "SD2",
+  col = cols_pattern,
+  pch = 16
+)
+text(
+  x1,
+  y1,
+  paste(
+    "d",
+    1:doc_count,
+    sep = ""
+  ),
+  col = cols_pattern,
+  pos = 1
+)
+points(
+  x2,
+  y2,
+  pch = 15,
+  col = "magenta"
+)
+text(
+  x2,
+  y2,
+  rownames(coord_terms[current_terms,]),
+  col = "magenta",
+  pos = 2
+)
+legend(
+  "topright",
+  inset = c(-0.9, 0.1),
+  legend,
+  text.col = cols_pattern
+)
+dev.off()
+
+# Analiza skupień
+# załadowanie bibliotek
+library(proxy)
+library(dendextend)
+library(corrplot)
+library(flexclust)
+
+# załadowanie skryptu z macierzą częstości
+source_file <- "./scripts/frequency_matrix.R"
+source(source_file)
+
+# utworzenie katalogu na wyniki
+clusters_dir <- "./clusters"
+dir.create(clusters_dir)
+
+# analiza skupień
+
+clusters_pattern <- c(1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5)
+cols = c("purple", "turquoise", "orange", "lightskyblue", "darkseagreen", "hotpink")
+cols_pattern <- cols[clusters_pattern]
+
+frequency_matrix <- dtm_tfidf_bounds_m
+measure <- "cosine"
+method <- "ward.D2"
+name <- "tfidf_bounds"
+
+doc_names <- rownames(frequency_matrix)
+doc_count <- length(doc_names)
+names(clusters_pattern) <- doc_names
+names(cols_pattern) <- doc_names
+
+dist_matrix <- dist(frequency_matrix, method = measure)
+hierarch_clust <- hclust(dist_matrix, method = method)
+plot_file <- paste(
+  clusters_dir,
+  paste("dend_",name,"_base.png", sep = ""),
+  sep = "/"
+)
+png(plot_file)
+plot(hierarch_clust)
+dev.off()
+dend <- as.dendrogram(hierarch_clust)
+clusters_count <- find_k(dend)$k
+plot_file <- paste(
+  clusters_dir,
+  paste("dend_",name,"_color.png", sep = ""),
+  sep = "/"
+)
+dend_colored <- color_branches(
+  dend,
+  k = clusters_count,
+  col = cols
+)
+png(plot_file, width = 600)
+par(mai = c(1,1,1,4))
+plot(dend_colored, horiz = T)
+dev.off()
+plot_file <- paste(
+  clusters_dir,
+  paste("dend_",name,"_pattern.png", sep = ""),
+  sep = "/"
+)
+dend_colored <- color_branches(
+  dend,
+  col = cols_pattern[dend %>% labels]
+)
+png(plot_file, width = 600)
+par(mai = c(1,1,1,4))
+plot(dend_colored, horiz = T)
+dev.off()
+clusters <- cutree(hierarch_clust, k = clusters_count)
+clusters_matrix = matrix(0, doc_count, clusters_count)
+rownames(clusters_matrix) <- doc_names
+for (doc in 1:doc_count) {
+  clusters_matrix[doc, clusters[doc]] <- 1
+}
+plot_file <- paste(
+  clusters_dir,
+  paste("matrix_",name,".png", sep = ""),
+  sep = "/"
+)
+png(plot_file)
+# par(mai = c(1,1,1,4))
+corrplot(clusters_matrix)
+dev.off()
+
+rand_pattern_experiment <- comPart(clusters, clusters_pattern)
+rand_experiment1_experiment2 <- comPart(clusters_1, clusters_2)
+
+plot_file <- paste(
+  clusters_dir,
+  "FM_index.png",
+  sep = "/"
+)
+png(plot_file)
+Bk_plot(
+  dend_1,
+  dend_2,
+  add_E = F,
+  rejection_line_asymptotic = F,
+  main = "Indeks Fawlkes'a - Mallows'a"
+)
+dev.off()
 
