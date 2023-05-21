@@ -1,6 +1,14 @@
 # załadowanie bibliotek
 library(tm)
 library(hunspell)
+library(topicmodels)
+library(wordcloud)
+library(lsa)
+library(proxy)
+library(dendextend)
+library(corrplot)
+library(flexclust)
+
 
 ### Tworzenie korpusu i wstępne przetwarzanie ###
 
@@ -67,7 +75,6 @@ dir.create(preprocessed_dir)
 writeCorpus(corpus,preprocessed_dir)
 
 
-
 ### Tworzenie macierzy częstości ###
 
 corpus_dir <- "./przetworzone"
@@ -94,167 +101,74 @@ corpus <- tm_map(corpus, cut_extension)
 # tworzenie macierzy częstości
 tdm_tf_all <- TermDocumentMatrix(corpus)
 
-# transponowana tdm
-tdm_tf_all <- TermDocumentMatrix(corpus)
 dtm_tf_all <- DocumentTermMatrix(corpus)
+
 dtm_tfidf_all <- DocumentTermMatrix(
   corpus,
   control = list(
     weighting = weightTfIdf
   )
 )
-dtm_tf_bounds <- DocumentTermMatrix(
+
+tdm_tf_612 <- TermDocumentMatrix(
   corpus,
   control = list(
+    weighting = weightTf,
     bounds = list(
-      global = c(2,16)
+      global = c(6,12)
     )
   )
 )
-dtm_tfidf_bounds <- DocumentTermMatrix(
+
+tdm_tfidf_410 <- TermDocumentMatrix(
+  corpus,
+  control = list(
+    weighting =  weightTfIdf,
+    bounds = list(
+      global = c(4,10)
+    )
+  )
+)
+
+dtm_tf_612 <- DocumentTermMatrix(
+  corpus,
+  control = list(
+    weighting = weightTf,
+    bounds = list(
+      global = c(6,12)
+    )
+  )
+)
+
+
+dtm_tfidf_410 <- DocumentTermMatrix(
   corpus,
   control = list(
     weighting = weightTfIdf,
     bounds = list(
-      global = c(2,16)
+      global = c(4,10)
     )
   )
 )
 
-tdm_tf_bounds <- TermDocumentMatrix(
-  corpus,
-  control = list(
-    bounds = list(
-      global = c(2,16)
-    )
-  )
-)
-
+tdm_tf_all_m <- as.matrix(tdm_tf_all)
+tdm_tf_612_m <- as.matrix(tdm_tf_612)
+tdm_tfidf_410_m <- as.matrix(tdm_tfidf_410)
 dtm_tf_all_m <- as.matrix(dtm_tf_all)
 dtm_tfidf_all_m <- as.matrix(dtm_tfidf_all)
-dtm_tfidf_bounds_m <- as.matrix(dtm_tfidf_bounds)
-tdm_tf_bounds_m <- as.matrix(tdm_tf_bounds)
+dtm_tf_612_m <- as.matrix(dtm_tf_612)
+dtm_tfidf_410_m <- as.matrix(dtm_tfidf_410)
 
 
-### LDA ###
-
-# załadowanie bibliotek
-library(topicmodels)
-
-# utworzenie katalogu na wyniki
-topics_dir <- "./topics"
-dir.create(topics_dir)
-
-# Analiza Ukrytej Alokacji Dirichlet'a (Latent Dirichlet Allocation method)
-words_count <- ncol(dtm_tf_all)
-topics_count <- 5
-lda_model <- LDA(
-  dtm_tf_all,
-  topics_count,
-  method = "Gibbs",
-  control = list(
-    burnin = 2000,
-    thin = 100,
-    iter = 3000
-  )
-)
-results <- posterior(lda_model)
-cols = c("lightsteelblue", "orchid", "royalblue", "grey0", "darkolivegreen4", "darkgoldenrod1")
-
-# prezentacja tematów
-for (topic_no in 1:topics_count) {
-  topic_file <- paste(
-    topics_dir,
-    paste("Temat", topic_no, ".png"),
-    sep = "/"
-  )
-  png(topic_file)
-  par(mai = c(1,2,1,1))
-  topic <- tail(sort(results$terms[topic_no,]),20)
-  barplot(
-    topic,
-    horiz = TRUE,
-    las = 1,
-    main = paste("Temat", topic_no),
-    xlab = "Prawdopodobieństwo",
-    col = cols[topic_no]
-  )
-  dev.off()
-}
-
-#prezentacja dokumentów
-plot_file <- paste(topics_dir, "Dokumenty.png",sep = "/")
-png(plot_file)
-par(mai = c(1,4,1,1))
-barplot(
-  t(results$topics),
-  horiz = TRUE,
-  las = 1,
-  main = "Dokumenty",
-  xlab = "Prawdopodobieństwo",
-  col = cols
-)
-dev.off()
-
-
-### keywords ###
-
-
-# załadowanie bibliotek
-library(wordcloud)
-
-# załadowanie skryptu z macierzą częstości
-#source_file <- "./scripts/frequency_matrix.R"
-#source(source_file)
-
-# utworzenie katalogu na wyniki
-clouds_dir <- "./clouds"
-dir.create(clouds_dir)
-
-# waga tf jako miara ważności słów w dokumentach
-for (doc_no in 1:length(corpus)) {
-  print(rownames(dtm_tf_all_m)[doc_no])
-  print(head(sort(dtm_tf_all_m[doc_no,], decreasing = T)))
-}
-
-# waga tfidf jako miara ważności słów w dokumentach
-for (doc_no in 1:length(corpus)) {
-  print(rownames(dtm_tfidf_all_m)[doc_no])
-  print(head(sort(dtm_tfidf_all_m[doc_no,], decreasing = T)))
-}
-
-# prawdopodobieństwo w lda jako miara ważnosci słów
-
-
-#chmury tagów
-for (doc_no in 1:length(corpus)) {
-  cloud_file <- paste(
-    clouds_dir,
-    paste(corpus[[doc_no]]$meta$id, ".png", sep = ""),
-    sep = "/"
-  )
-  png(cloud_file)
-  wordcloud(
-    corpus[doc_no],
-    max.words = 200,
-    colors = brewer.pal(8,"Blues")
-  )
-  dev.off()
-}
-
-## Reduction
-library(lsa)
-
-# załadowanie skryptu z macierzą częstości
-source_file <- "./scripts/frequency_matrix.R"
-source(source_file)
+### Redukcja wymiarów macierzy ###
 
 # utworzenie katalogu na wyniki
 reduction_dir <- "./reduction"
 dir.create(reduction_dir)
 
 # legenda
-doc_names <- rownames(dtm_tfidf_bounds)
+#matrix
+doc_names <- rownames(dtm_tf_all)
 doc_count <- length(doc_names)
 legend <- paste(
   paste(
@@ -268,14 +182,20 @@ legend <- paste(
 options(scipen = 5)
 
 # kolory
-clusters_pattern <- c(1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5)
-cols = c("purple", "turquoise", "orange", "lightskyblue", "darkseagreen", "hotpink")
+clusters_pattern <- c(1,1,1,1,2,2,2,2,4,4,4,4,5,5,5,5,6,6,6,6)
+cols = c("lightsteelblue", "orchid", "royalblue","darkseagreen1", "cyan4", "navy" , "mediumpurple1")
 cols_pattern <- cols[clusters_pattern]
 names(clusters_pattern) <- doc_names
 names(cols_pattern) <- doc_names
 
-# analiza głównych składowych
-pca_model <- prcomp(dtm_tfidf_bounds)
+#experiment matrix
+#exp_matrix <- dtm_tf_all
+#exp_matrix <- dtm_tf_612
+exp_matrix <- dtm_tfidf_410
+
+
+#Analiza głównych składowych
+pca_model <- prcomp(exp_matrix)
 
 x <- pca_model$x[,1]
 y <- pca_model$x[,2]
@@ -315,9 +235,15 @@ legend(
 )
 dev.off()
 
+### Dekompozycja według wartości osobliwych ###
+
+#experiment matrix
+exp_matrix <- tdm_tf_all
+#exp_matrix <- tdm_tf_612
+#exp_matrix <- tdm_tfidf_410
+
 # analiza ukrytych wymiarów semantycznych
-# dekompozycja według wartości osobliwych
-lsa_model <- lsa(tdm_tf_bounds_m)
+lsa_model <- lsa(exp_matrix)
 
 coord_docs <- lsa_model$dk%*%diag(lsa_model$sk)
 coord_terms <- lsa_model$tk%*%diag(lsa_model$sk)
@@ -332,7 +258,9 @@ important_terms <- names(
   )
 )
 
-own_terms <- c("arlen", "eragon", "bilbo", "yennefer", "ciri", "jaskier", "geralt", "frodo", "gandalf", "halt", "ork", "horace")
+own_terms <- c("daenerys", "jon", "cersei", "eragon", "bilbo", "yennefer", "ciri", "jaskier", "geralt", "frodo", "gandalf", "halt", "ork", "horace")
+#own_terms <- c("elf", "czarodziej", "smok", "brat", "arya", "cel", "dawny")
+#own_terms <- c("catelyn", "brama", "bohater", "bagginsa", "bronić","bezpieczny", "atakować")
 current_terms <- own_terms
 
 x1 <- coord_docs[,1]
@@ -371,13 +299,13 @@ points(
   x2,
   y2,
   pch = 15,
-  col = "magenta"
+  col = "mediumvioletred"
 )
 text(
   x2,
   y2,
   rownames(coord_terms[current_terms,]),
-  col = "magenta",
+  col = "mediumvioletred",
   pos = 2
 )
 legend(
@@ -388,16 +316,7 @@ legend(
 )
 dev.off()
 
-# Analiza skupień
-# załadowanie bibliotek
-library(proxy)
-library(dendextend)
-library(corrplot)
-library(flexclust)
-
-# załadowanie skryptu z macierzą częstości
-source_file <- "./scripts/frequency_matrix.R"
-source(source_file)
+### Analiza skupień ###
 
 # utworzenie katalogu na wyniki
 clusters_dir <- "./clusters"
@@ -406,13 +325,12 @@ dir.create(clusters_dir)
 # analiza skupień
 
 clusters_pattern <- c(1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5)
-cols = c("purple", "turquoise", "orange", "lightskyblue", "darkseagreen", "hotpink")
 cols_pattern <- cols[clusters_pattern]
 
-frequency_matrix <- dtm_tfidf_bounds_m
+frequency_matrix <- dtm_tfidf_all_m
 measure <- "cosine"
 method <- "ward.D2"
-name <- "tfidf_bounds"
+name <- "tfidf_all"
 
 doc_names <- rownames(frequency_matrix)
 doc_count <- length(doc_names)
@@ -429,15 +347,15 @@ plot_file <- paste(
 png(plot_file)
 plot(hierarch_clust)
 dev.off()
-dend <- as.dendrogram(hierarch_clust)
-clusters_count <- find_k(dend)$k
+dend_h <- as.dendrogram(hierarch_clust)
+clusters_count <- find_k(dend_h)$k
 plot_file <- paste(
   clusters_dir,
   paste("dend_",name,"_color.png", sep = ""),
   sep = "/"
 )
 dend_colored <- color_branches(
-  dend,
+  dend_h,
   k = clusters_count,
   col = cols
 )
@@ -475,7 +393,7 @@ corrplot(clusters_matrix)
 dev.off()
 
 rand_pattern_experiment <- comPart(clusters, clusters_pattern)
-rand_experiment1_experiment2 <- comPart(clusters_1, clusters_2)
+#rand_experiment1_experiment2 <- comPart(clusters_1, clusters_2)
 
 plot_file <- paste(
   clusters_dir,
@@ -484,11 +402,127 @@ plot_file <- paste(
 )
 png(plot_file)
 Bk_plot(
-  dend_1,
-  dend_2,
+  dend_h,
+  dend_h,
   add_E = F,
   rejection_line_asymptotic = F,
   main = "Indeks Fawlkes'a - Mallows'a"
 )
 dev.off()
 
+### LDA ###
+
+# utworzenie katalogu na wyniki
+topics_dir <- "./topics"
+dir.create(topics_dir)
+
+# Metoda Ukrytej Alokacji Dirichlet'a (Latent Dirichlet Allocation method)
+
+#matrix <- dtm_tf_all
+matrix <- dtm_tf_612
+#topics_count <- 3
+#topics_count <- 5
+topics_count <- 7
+lda_model <- LDA(
+  matrix,
+  topics_count,
+  method = "Gibbs",
+  control = list(
+    burnin = 2000,
+    thin = 100,
+    iter = 3000
+  )
+)
+results <- posterior(lda_model)
+
+# kolory
+cols = c("lightsteelblue", "orchid", "royalblue","darkseagreen1", "cyan4", "navy", "mediumpurple1")
+
+# prezentacja tematów
+for (topic_no in 1:topics_count) {
+  topic_file <- paste(
+    topics_dir,
+    paste("Temat", topic_no, ".png"),
+    sep = "/"
+  )
+  png(topic_file)
+  par(mai = c(1,2,1,1))
+  topic <- tail(sort(results$terms[topic_no,]),20)
+  barplot(
+    topic,
+    horiz = TRUE,
+    las = 1,
+    main = paste("Temat", topic_no),
+    xlab = "Prawdopodobieństwo",
+    col = cols[topic_no]
+  )
+  dev.off()
+}
+
+#prezentacja dokumentów
+plot_file <- paste(topics_dir, "Dokumenty.png",sep = "/")
+png(plot_file)
+par(mai = c(1,4,1,1))
+barplot(
+  t(results$topics),
+  horiz = TRUE,
+  las = 1,
+  main = "Dokumenty",
+  xlab = "Prawdopodobieństwo",
+  col = cols
+)
+dev.off()
+
+
+### Słowa kluczowe ###
+
+# utworzenie katalogu na wyniki
+clouds_dir <- "./clouds"
+dir.create(clouds_dir)
+
+# waga tf jako miara ważności słów w dokumentach
+for (doc_no in 1:length(corpus)) {
+  print(rownames(dtm_tf_all_m)[doc_no])
+  print(head(sort(dtm_tf_all_m[doc_no,], decreasing = T)))
+}
+
+# waga tfidf jako miara ważności słów w dokumentach
+for (doc_no in 1:length(corpus)) {
+  print(rownames(dtm_tfidf_all_m)[doc_no])
+  print(head(sort(dtm_tfidf_all_m[doc_no,], decreasing = T)))
+}
+
+# waga tf_612 jako miara ważności słów w dokumentach
+for (doc_no in 1:length(corpus)) {
+  print(rownames(dtm_tf_612_m)[doc_no])
+  print(head(sort(dtm_tf_612_m[doc_no,], decreasing = T)))
+}
+
+# waga tf_612 jako miara ważności słów w dokumentach
+for (doc_no in 1:length(corpus)) {
+  print(rownames(tdm_tf_612_m)[doc_no])
+  print(head(sort(tdm_tf_612_m[doc_no,], decreasing = T)))
+}
+
+# waga tf_410 jako miara ważności słów w dokumentach
+for (doc_no in 1:length(corpus)) {
+  print(rownames(tdm_tfidf_410_m)[doc_no])
+  print(head(sort(tdm_tfidf_410_m[doc_no,], decreasing = T)))
+}
+
+
+#chmury tagów
+for (doc_no in 1:length(corpus)) {
+  cloud_file <- paste(
+    clouds_dir,
+    paste(corpus[[doc_no]]$meta$id, ".png", sep = ""),
+    sep = "/"
+  )
+  png(cloud_file)
+  wordcloud(
+    corpus[doc_no],
+    max.words = 200,
+    colors = brewer.pal(8,"Blues")
+  )
+  dev.off()
+}
