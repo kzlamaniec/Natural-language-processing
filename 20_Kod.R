@@ -159,8 +159,17 @@ dtm_tfidf_all_m <- as.matrix(dtm_tfidf_all)
 dtm_tf_612_m <- as.matrix(dtm_tf_612)
 dtm_tfidf_410_m <- as.matrix(dtm_tfidf_410)
 
+# kolory
+cols = c("lightsteelblue", "orchid", "royalblue","darkseagreen1", "cyan4", "navy" , "mediumpurple1")
+
 
 ### Redukcja wymiarów macierzy ###
+
+#przygotowanie
+clusters_pattern <- c(1,1,1,1,2,2,2,2,3,3,3,3,5,5,5,5,6,6,6,6)
+cols_pattern <- cols[clusters_pattern]
+names(clusters_pattern) <- doc_names
+names(cols_pattern) <- doc_names
 
 # utworzenie katalogu na wyniki
 reduction_dir <- "./reduction"
@@ -181,20 +190,13 @@ legend <- paste(
 )
 options(scipen = 5)
 
-# kolory
-clusters_pattern <- c(1,1,1,1,2,2,2,2,4,4,4,4,5,5,5,5,6,6,6,6)
-cols = c("lightsteelblue", "orchid", "royalblue","darkseagreen1", "cyan4", "navy" , "mediumpurple1")
-cols_pattern <- cols[clusters_pattern]
-names(clusters_pattern) <- doc_names
-names(cols_pattern) <- doc_names
-
 #experiment matrix
 #exp_matrix <- dtm_tf_all
 #exp_matrix <- dtm_tf_612
 exp_matrix <- dtm_tfidf_410
 
 
-#Analiza głównych składowych
+## Analiza głównych składowych
 pca_model <- prcomp(exp_matrix)
 
 x <- pca_model$x[,1]
@@ -238,9 +240,9 @@ dev.off()
 ### Dekompozycja według wartości osobliwych ###
 
 #experiment matrix
-exp_matrix <- tdm_tf_all
+#exp_matrix <- tdm_tf_all
 #exp_matrix <- tdm_tf_612
-#exp_matrix <- tdm_tfidf_410
+exp_matrix <- tdm_tfidf_410
 
 # analiza ukrytych wymiarów semantycznych
 lsa_model <- lsa(exp_matrix)
@@ -258,9 +260,9 @@ important_terms <- names(
   )
 )
 
-own_terms <- c("daenerys", "jon", "cersei", "eragon", "bilbo", "yennefer", "ciri", "jaskier", "geralt", "frodo", "gandalf", "halt", "ork", "horace")
+#own_terms <- c("daenerys", "jon", "cersei", "eragon", "bilbo", "yennefer", "ciri", "jaskier", "geralt", "frodo", "gandalf", "halt", "ork", "horace")
 #own_terms <- c("elf", "czarodziej", "smok", "brat", "arya", "cel", "dawny")
-#own_terms <- c("catelyn", "brama", "bohater", "bagginsa", "bronić","bezpieczny", "atakować")
+own_terms <- c("catelyn", "brama", "bohater", "bagginsa", "bronić","bezpieczny", "atakować")
 current_terms <- own_terms
 
 x1 <- coord_docs[,1]
@@ -316,71 +318,86 @@ legend(
 )
 dev.off()
 
+
+
 ### Analiza skupień ###
 
 # utworzenie katalogu na wyniki
 clusters_dir <- "./clusters"
 dir.create(clusters_dir)
 
-# analiza skupień
+## metody hierarhiczne
+
+
+#przygotowanie
+
+#frequency_matrix <- dtm_tfidf_all_m
+frequency_matrix <- dtm_tfidf_410_m 
+measure <- "euclidean"
 
 clusters_pattern <- c(1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5)
 cols_pattern <- cols[clusters_pattern]
-
-frequency_matrix <- dtm_tfidf_all_m
-measure <- "cosine"
-method <- "ward.D2"
-name <- "tfidf_all"
 
 doc_names <- rownames(frequency_matrix)
 doc_count <- length(doc_names)
 names(clusters_pattern) <- doc_names
 names(cols_pattern) <- doc_names
 
+#Exp_ward_all/Exp_ward_bounds
+method <- "ward.D2"
+#name <- "1_ward_tfidf_all"
+name <- "1_ward_tfidf_410"
+
 dist_matrix <- dist(frequency_matrix, method = measure)
-hierarch_clust <- hclust(dist_matrix, method = method)
+h_clust_1 <- hclust(dist_matrix, method = method)
 plot_file <- paste(
   clusters_dir,
   paste("dend_",name,"_base.png", sep = ""),
   sep = "/"
 )
 png(plot_file)
-plot(hierarch_clust)
+plot(h_clust_1)
 dev.off()
-dend_h <- as.dendrogram(hierarch_clust)
-clusters_count <- find_k(dend_h)$k
+
+barplot(h_clust_1$height, names.arg = (doc_count-1):1)
+dend_1 <- as.dendrogram(h_clust_1)
+clusters_count <- find_k(dend_1)$k
+
 plot_file <- paste(
   clusters_dir,
   paste("dend_",name,"_color.png", sep = ""),
   sep = "/"
 )
-dend_colored <- color_branches(
-  dend_h,
+dend_1_colored <- color_branches(
+  dend_1,
   k = clusters_count,
   col = cols
 )
 png(plot_file, width = 600)
 par(mai = c(1,1,1,4))
-plot(dend_colored, horiz = T)
+plot(dend_1_colored, horiz = T)
 dev.off()
+
+
 plot_file <- paste(
   clusters_dir,
   paste("dend_",name,"_pattern.png", sep = ""),
   sep = "/"
 )
-dend_colored <- color_branches(
-  dend,
-  col = cols_pattern[dend %>% labels]
+dend_1_colored <- color_branches(
+  dend_1,
+  col = cols_pattern[dend_1 %>% labels]
 )
 png(plot_file, width = 600)
 par(mai = c(1,1,1,4))
-plot(dend_colored, horiz = T)
+plot(dend_1_colored, horiz = T)
 dev.off()
-clusters <- cutree(hierarch_clust, k = clusters_count)
-clusters_matrix = matrix(0, doc_count, clusters_count)
-rownames(clusters_matrix) <- doc_names
+
+clusters_1 <- cutree(h_clust_1, k = clusters_count)
+clusters_matrix_1 = matrix(0, doc_count, clusters_count)
+rownames(clusters_matrix_1) <- doc_names
 for (doc in 1:doc_count) {
-  clusters_matrix[doc, clusters[doc]] <- 1
+  clusters_matrix_1[doc, clusters_1[doc]] <- 1
 }
 plot_file <- paste(
   clusters_dir,
@@ -388,27 +405,95 @@ plot_file <- paste(
   sep = "/"
 )
 png(plot_file)
-# par(mai = c(1,1,1,4))
-corrplot(clusters_matrix)
+par(mai = c(1,1,1,4))
+corrplot(clusters_matrix_1)
 dev.off()
 
-rand_pattern_experiment <- comPart(clusters, clusters_pattern)
-#rand_experiment1_experiment2 <- comPart(clusters_1, clusters_2)
+#Exp_complete_all/Exp_complete_bounds
+method <- "complete"
+#name <- "2_complete_tfidf_all"
+name <- "2_complete_tfidf_410"
+
+dist_matrix <- dist(frequency_matrix, method = measure)
+h_clust_2 <- hclust(dist_matrix, method = method)
+plot_file <- paste(
+  clusters_dir,
+  paste("dend_",name,"_base.png", sep = ""),
+  sep = "/"
+)
+png(plot_file)
+plot(h_clust_2)
+dev.off()
+
+barplot(h_clust_2$height, names.arg = (doc_count-1):1)
+dend_2 <- as.dendrogram(h_clust_2)
+clusters_count <- find_k(dend_2)$k
 
 plot_file <- paste(
   clusters_dir,
-  "FM_index.png",
+  paste("dend_",name,"_color.png", sep = ""),
+  sep = "/"
+)
+dend_2_colored <- color_branches(
+  dend_2,
+  k = clusters_count,
+  col = cols
+)
+png(plot_file, width = 600)
+par(mai = c(1,1,1,4))
+plot(dend_2_colored, horiz = T)
+dev.off()
+
+
+plot_file <- paste(
+  clusters_dir,
+  paste("dend_",name,"_pattern.png", sep = ""),
+  sep = "/"
+)
+dend_2_colored <- color_branches(
+  dend_2,
+  col = cols_pattern[dend_2 %>% labels]
+)
+png(plot_file, width = 600)
+par(mai = c(1,1,1,4))
+plot(dend_2_colored, horiz = T)
+dev.off()
+
+clusters_2 <- cutree(h_clust_2, k = clusters_count)
+clusters_matrix_2 = matrix(0, doc_count, clusters_count)
+rownames(clusters_matrix_2) <- doc_names
+for (doc in 1:doc_count) {
+  clusters_matrix_2[doc, clusters_2[doc]] <- 1
+}
+plot_file <- paste(
+  clusters_dir,
+  paste("matrix_",name,".png", sep = ""),
+  sep = "/"
+)
+png(plot_file)
+par(mai = c(1,1,1,4))
+corrplot(clusters_matrix_2)
+dev.off()
+
+# porównanie metod
+plot_file <- paste(
+  clusters_dir,
+  "FMIndex.png",
   sep = "/"
 )
 png(plot_file)
 Bk_plot(
-  dend_h,
-  dend_h,
+  dend_1,
+  dend_2,
   add_E = F,
   rejection_line_asymptotic = F,
   main = "Indeks Fawlkes'a - Mallows'a"
 )
 dev.off()
+
+rand_exp1_exp2 <- comPart(clusters_1, clusters_2)
+rand_exp1_pattern <- comPart(clusters_1, clusters_pattern)
+rand_exp2_pattern <- comPart(clusters_2, clusters_pattern)
 
 ### LDA ###
 
@@ -498,13 +583,7 @@ for (doc_no in 1:length(corpus)) {
   print(head(sort(dtm_tf_612_m[doc_no,], decreasing = T)))
 }
 
-# waga tf_612 jako miara ważności słów w dokumentach
-for (doc_no in 1:length(corpus)) {
-  print(rownames(tdm_tf_612_m)[doc_no])
-  print(head(sort(tdm_tf_612_m[doc_no,], decreasing = T)))
-}
-
-# waga tf_410 jako miara ważności słów w dokumentach
+# waga tfidf_410 jako miara ważności słów w dokumentach
 for (doc_no in 1:length(corpus)) {
   print(rownames(tdm_tfidf_410_m)[doc_no])
   print(head(sort(tdm_tfidf_410_m[doc_no,], decreasing = T)))
